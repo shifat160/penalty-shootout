@@ -28,3 +28,16 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/penalty-shootout:latest
+
+      # Tell xCloud to pull the freshly-pushed image and redeploy.
+      # Runs only after the image is published, so xCloud never pulls a stale image.
+      - name: Trigger xCloud deploy
+        env:
+          HOOK: ${{ secrets.XCLOUD_DEPLOY_HOOK }}
+        run: |
+          if [ -n "$HOOK" ]; then
+            echo "Triggering xCloud deploy..."
+            curl -fsS -X POST "$HOOK" && echo "" && echo "xCloud deploy triggered."
+          else
+            echo "No XCLOUD_DEPLOY_HOOK secret set; skipping deploy trigger."
+          fi
