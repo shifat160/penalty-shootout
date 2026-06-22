@@ -1,10 +1,15 @@
 # ⚽ xCloud Penalty Shootout — WordCamp Rajshahi booth game
 
 A self-hosted, World-Cup-themed penalty shootout mini-game for your booth.
-Players enter a name, take **5 penalties** by tapping where they want to shoot,
-and land on a **shared live leaderboard**. Perfect for a "beat the high score,
-win a prize" booth competition.
+Players register with **name, email, and the country they want to play as**,
+then take **5 penalties** in a floodlit-stadium scene: pick a corner, time the
+**power meter**, and beat a diving keeper. The penalty taker wears the chosen
+nation's **kit**, and everyone lands on a **shared live leaderboard** (with
+flags). Perfect for a "beat the high score, win a prize" booth competition —
+and you can **export captured leads (name/email/country) as CSV**.
 
+- First-person stadium scene (crowd, floodlights, goal, diving keeper, shooter)
+- 40+ national kits selected at registration; jersey colours applied to the taker
 - Pure **HTML/CSS/JS** front end (no build step, works great on phones + a big TV)
 - Tiny **Node.js** backend (no dependencies) for a persistent shared leaderboard
 - **One-command Docker deploy** on any VPS — including one you host on xCloud
@@ -118,20 +123,26 @@ Or just stop the container and delete `data/scores.json`.
 ## How scoring works
 
 - Each player takes 5 shots; a goal = 1 point (max 5).
-- The leaderboard keeps each **player's best score** (by name), sorted highest
-  first, ties broken by who reached it first.
-- The keeper dives to a random zone each shot; if it matches your target it's a
-  save, plus a small chance of a fingertip save on an adjacent zone — enough
-  randomness to keep a queue of people trying for a perfect 5/5.
+- The leaderboard keeps each **player's best score**, keyed by **email** when
+  present (so retries don't create duplicate rows), sorted highest first, ties
+  broken by who reached it first.
+- Each shot has two steps: **aim** (tap a zone in the goal) then **power** (tap
+  SHOOT while the meter is in the green band). Too little power = easy save; too
+  much on the top corners = over the bar.
+- The keeper dives to a (slightly centre-biased) random zone; a match is a save,
+  with a small fingertip-save chance on adjacent zones. Perfect-power corners can
+  still beat the keeper — enough randomness to keep a queue trying for 5/5.
 
 ## Customising
 
 - **Branding / colours:** edit the `:root` CSS variables and the `.brand` block
   at the top of `public/index.html`.
-- **Number of shots:** change `TOTAL_SHOTS` in `public/index.html` **and**
-  `MAX_BOARD`/labels if you want.
-- **Difficulty:** in `public/index.html`, the `shoot()` function controls save
-  logic — lower the `0.10` adjacent-save chance to make it easier.
+- **Nations / kits:** edit the `COUNTRIES` array in `public/index.html` —
+  `[name, flag, shirt, trim, shorts, socks, striped]`. Default selection is
+  Bangladesh.
+- **Number of shots:** change `TOTAL_SHOTS` in `public/index.html`.
+- **Difficulty:** in `public/index.html`, the `judge()` function controls
+  goal/save/miss logic — tweak the power bands and save chances there.
 
 ## Files
 
@@ -146,6 +157,8 @@ Or just stop the container and delete `data/scores.json`.
 
 ## API (for reference)
 
-- `GET  /api/leaderboard` → `{ "top": [ { "name", "score" }, ... ] }`
-- `POST /api/score` body `{ "name": "...", "score": 0-5 }` → saves + returns board
+- `GET  /api/leaderboard` → `{ "top": [ { "name", "country", "flag", "score" }, ... ] }`
+- `POST /api/score` body `{ "name", "email", "country", "flag", "score": 0-5 }` → saves + returns board
 - `POST /api/reset?token=...` → clears board (only if `ADMIN_TOKEN` is set)
+- `GET  /api/export?token=...` → downloads all entries as CSV
+  (`name,email,country,score,timestamp`) for lead capture (needs `ADMIN_TOKEN`)
