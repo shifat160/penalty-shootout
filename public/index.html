@@ -104,8 +104,19 @@
     background-size:7% 14%;}
   .goal .net.side{left:-1px;width:7px;opacity:.5;}
 
-  /* aim zones overlaid on goal */
-  .zones{position:absolute;inset:0;z-index:6;display:grid;
+  /* moving aim crosshair (the aiming skill) */
+  .crosshair{position:absolute;left:50%;top:50%;width:13%;aspect-ratio:1;z-index:7;
+    transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .15s;}
+  .crosshair.live{opacity:1;}
+  .crosshair span{position:absolute;inset:0;border:3px solid var(--gold);border-radius:50%;
+    box-shadow:0 0 10px rgba(255,210,74,.85);}
+  .crosshair span::before,.crosshair span::after{content:"";position:absolute;background:var(--gold);}
+  .crosshair span::before{left:50%;top:-28%;width:2px;height:156%;transform:translateX(-50%);}
+  .crosshair span::after{top:50%;left:-28%;height:2px;width:156%;transform:translateY(-50%);}
+  .crosshair.locked span{border-color:#fff;box-shadow:0 0 12px #fff;}
+
+  /* aim zones overlaid on goal (visual grid only; aiming is via crosshair) */
+  .zones{position:absolute;inset:0;z-index:6;display:grid;pointer-events:none;
     grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);}
   .zone{cursor:pointer;display:grid;place-items:center;}
   .zone .dot{width:26%;aspect-ratio:1;border-radius:50%;border:2px solid transparent;
@@ -269,6 +280,7 @@
         <div class="zone" data-z="8"><span class="dot"></span></div>
       </div>
       <div class="keeper" id="keeper"></div>
+      <div class="crosshair" id="crosshair"><span></span></div>
     </div>
 
     <div class="spot"></div>
@@ -457,10 +469,14 @@ const power=document.getElementById('power');
 const marker=document.getElementById('marker');
 const shootBtn=document.getElementById('shootBtn');
 const whoEl=document.getElementById('who');
+const crosshair=document.getElementById('crosshair');
+const sceneEl=document.getElementById('scene');
 
 let player={name:'',email:'',country:'',flag:'',kit:null};
 let state={shot:0,goals:0,phase:'idle',target:null,results:[]};
 let powerAnim=null, powerVal=0, powerDir=1;
+let aimAnim=null, aimX=50, aimY=50, aimXDir=1, aimYDir=1;
+const ANTICIPATE=0.34;   // chance the keeper reads your exact spot
 
 /* zone landing positions in goal-local % (left,top) + keeper reach */
 const ZONES=[
@@ -531,51 +547,78 @@ function startPower(){
 }
 function stopPower(){if(powerAnim)cancelAnimationFrame(powerAnim);powerAnim=null;power.classList.remove('live');}
 
-/* ---------- aim phase ---------- */
+/* ---------- aim phase: moving crosshair ---------- */
+function startAim(){
+  crosshair.classList.add('live');crosshair.classList.remove('locked');
+  aimX=8;aimY=20;aimXDir=1;aimYDir=1;
+  const tick=()=>{
+    aimX+=aimXDir*1.8; if(aimX>=92){aimX=92;aimXDir=-1;} if(aimX<=8){aimX=8;aimXDir=1;}
+    aimY+=aimYDir*2.4; if(aimY>=86){aimY=86;aimYDir=-1;} if(aimY<=12){aimY=12;aimYDir=1;}
+    crosshair.style.left=aimX+'%';crosshair.style.top=aimY+'%';
+    aimAnim=requestAnimationFrame(tick);
+  };
+  aimAnim=requestAnimationFrame(tick);
+}
+function stopAim(){if(aimAnim)cancelAnimationFrame(aimAnim);aimAnim=null;}
+
 function beginAim(){
   state.phase='aim';state.target=null;
   resetKeeper();resetBall();
   shooterEl.classList.remove('hide','kick');
-  document.body.classList.add('aim');
-  zonesEl.querySelectorAll('.zone').forEach(z=>z.classList.remove('picked'));
-  hint.textContent='Shot '+(state.shot+1)+' of '+TOTAL_SHOTS+' — pick your spot';
-  shootBtn.disabled=true;shootBtn.textContent='Pick a target first';
+  hint.textContent='Shot '+(state.shot+1)+' of '+TOTAL_SHOTS+' — tap LOCK on your spot';
+  shootBtn.disabled=false;shootBtn.textContent='🎯 LOCK AIM';
+  startAim();
 }
-function pickZone(zi){
-  if(state.phase!=='aim' && state.phase!=='power')return;
-  state.target=zi;
-  zonesEl.querySelectorAll('.zone').forEach(z=>z.classList.toggle('picked',+z.dataset.z===zi));
-  if(state.phase==='aim'){
-    state.phase='power';startPower();
-    hint.textContent='Now hit SHOOT in the green zone for power';
-    shootBtn.disabled=false;shootBtn.textContent='⚽ SHOOT';
-  }
+function lockAim(){
+  if(state.phase!=='aim')return;
+  stopAim();
+  crosshair.classList.add('locked');
+  state.target={ax:aimX,ay:aimY};
+  state.phase='power';startPower();
+  hint.textContent='Now hit SHOOT — stop the bar in the green';
+  shootBtn.textContent='⚽ SHOOT';
+}
+function primaryAction(){
+  if(state.phase==='aim')lockAim();
+  else if(state.phase==='power')doShoot();
 }
 
 /* ---------- shooting ---------- */
-function keeperGuess(){
-  // slight center bias
-  const r=Math.random();
-  if(r<0.18)return 4;
-  return Math.floor(Math.random()*9);
-}
 function adjacent(a,b){
   const za=ZONES[a],zb=ZONES[b];
   return (za.row===zb.row && Math.abs(za.col-zb.col)===1) ||
          (za.col===zb.col && Math.abs(za.row-zb.row)===1);
 }
-function judge(tz,kz,pw){
-  if(tz<3 && pw>88) return 'miss';            // over the bar on top row
-  if(pw<22){                                   // too soft
-    if(kz===tz||adjacent(kz,tz))return 'save';
-    return Math.random()<0.45?'save':'goal';
+function landingZone(ax,ay){
+  const col=ax<33?0:ax<66?1:2, row=ay<33?0:ay<66?1:2;
+  return row*3+col;
+}
+function keeperGuess(lz){
+  if(Math.random()<ANTICIPATE) return lz;          // keeper reads the shot
+  const w=[1,2,1, 2,3,2, 1,2,1];                   // centre/mid bias
+  let r=Math.random()*15;
+  for(let i=0;i<9;i++){ if((r-=w[i])<0) return i; }
+  return 4;
+}
+// returns 'goal' | 'save' | 'wide' | 'over'  (calibrated so >3 goals is tough)
+function judge(ax,ay,pw,lz,kz){
+  if(ax<7||ax>93){ if(Math.random()<0.5) return 'wide'; }     // risky near-post
+  if(ay<10 && pw>68) return 'over';
+  if(ay<14 && pw>88) return 'over';
+  if(pw<34){                                                   // too soft
+    if(kz===lz||adjacent(kz,lz)) return 'save';
+    return Math.random()<0.55?'save':'goal';
   }
-  if(kz===tz){
-    const perfect=pw>=42 && pw<=72;
-    if(perfect && tz!==4)return Math.random()<0.5?'goal':'save';
-    return 'save';
+  const perfect=pw>=46 && pw<=76;
+  const corner=(lz===0||lz===2||lz===6||lz===8);
+  if(kz===lz){                                                 // keeper guessed right
+    if(perfect && corner) return Math.random()<0.62?'save':'goal';
+    return Math.random()<0.92?'save':'goal';
   }
-  if(adjacent(kz,tz))return Math.random()<0.28?'save':'goal';
+  if(adjacent(kz,lz)){                                         // keeper within reach
+    const ch=perfect&&corner?0.32:0.55;
+    return Math.random()<ch?'save':'goal';
+  }
   return 'goal';
 }
 
@@ -583,13 +626,14 @@ function doShoot(){
   if(state.phase!=='power')return;
   const pw=Math.round(powerVal);
   stopPower();
+  const ax=state.target.ax, ay=state.target.ay;
+  const lz=landingZone(ax,ay), kz=keeperGuess(lz);
+  const outcome=judge(ax,ay,pw,lz,kz);
+
   state.phase='shooting';
-  document.body.classList.remove('aim');
   shootBtn.disabled=true;shootBtn.textContent='…';
   hint.textContent='';
-
-  const tz=state.target, kz=keeperGuess();
-  const outcome=judge(tz,kz,pw);
+  crosshair.classList.remove('live');
 
   // shooter kicks
   shooterEl.classList.add('kick');
@@ -598,17 +642,20 @@ function doShoot(){
   // keeper dives toward its guess
   setTimeout(()=>moveKeeper(kz),120);
 
-  // ball flies
-  const dest=zoneScene(tz);
+  // ball flies to the locked point (scene coords)
+  const destLeft=GOAL.left+(ax/100)*GOAL.w;
+  const destTop=GOAL.top+(ay/100)*GOAL.h;
   setTimeout(()=>{
     ball.classList.add('shooting');
-    if(outcome==='miss'){               // over the bar
-      ball.style.left=dest.left+'%';
-      ball.style.top=(GOAL.top-6)+'%';
-      ball.style.transform='translate(-50%,-50%) scale(.28)';
+    if(outcome==='over'){
+      ball.style.left=destLeft+'%';ball.style.top=(GOAL.top-7)+'%';
+      ball.style.transform='translate(-50%,-50%) scale(.26)';
+    }else if(outcome==='wide'){
+      const side=ax<50?GOAL.left-4:GOAL.left+GOAL.w+4;
+      ball.style.left=side+'%';ball.style.top=destTop+'%';
+      ball.style.transform='translate(-50%,-50%) scale(.3)';
     }else{
-      ball.style.left=dest.left+'%';
-      ball.style.top=dest.top+'%';
+      ball.style.left=destLeft+'%';ball.style.top=destTop+'%';
       ball.style.transform='translate(-50%,-50%) scale('+(outcome==='save'?.34:.26)+')';
     }
   },170);
@@ -622,11 +669,11 @@ function doShoot(){
     }else if(outcome==='save'){
       showFlash('SAVED!','var(--danger)');
       markPip(state.shot,false);
-      // nudge ball off the keeper
-      ball.style.top=(dest.top+8)+'%';
+      ball.style.top=(destTop+8)+'%';
+    }else if(outcome==='wide'){
+      showFlash('WIDE!','var(--gold)');markPip(state.shot,false);
     }else{
-      showFlash('OVER!','var(--gold)');
-      markPip(state.shot,false);
+      showFlash('OVER!','var(--gold)');markPip(state.shot,false);
     }
     state.results.push(outcome);
     state.shot++;
@@ -657,11 +704,11 @@ function updateWho(){
     '</span>&nbsp;·&nbsp;<span class="sc">'+state.goals+'</span>';
 }
 
-/* ---------- zone taps ---------- */
-zonesEl.querySelectorAll('.zone').forEach(z=>{
-  z.addEventListener('click',()=>pickZone(parseInt(z.dataset.z,10)));
+/* ---------- input: button + tap the pitch ---------- */
+shootBtn.addEventListener('click',primaryAction);
+sceneEl.addEventListener('click',()=>{
+  if(state.phase==='aim'||state.phase==='power')primaryAction();
 });
-shootBtn.addEventListener('click',doShoot);
 
 /* ---------- game lifecycle ---------- */
 function applyKit(){
