@@ -629,6 +629,9 @@ function doShoot(){
   const ax=state.target.ax, ay=state.target.ay;
   const lz=landingZone(ax,ay), kz=keeperGuess(lz);
   const outcome=judge(ax,ay,pw,lz,kz);
+  // On a save the keeper reaches the ball, so it dives to the ball's zone;
+  // otherwise it dives to its (wrong) guess, away from the ball.
+  const diveZone=(outcome==='save')?lz:kz;
 
   state.phase='shooting';
   shootBtn.disabled=true;shootBtn.textContent='…';
@@ -639,12 +642,13 @@ function doShoot(){
   shooterEl.classList.add('kick');
   setTimeout(()=>shooterEl.classList.add('hide'),180);
 
-  // keeper dives toward its guess
-  setTimeout(()=>moveKeeper(kz),120);
+  // keeper dives
+  setTimeout(()=>moveKeeper(diveZone),120);
 
-  // ball flies to the locked point (scene coords)
+  // ball flies (scene coords). On a save it meets the keeper's hands.
   const destLeft=GOAL.left+(ax/100)*GOAL.w;
   const destTop=GOAL.top+(ay/100)*GOAL.h;
+  const sdest=zoneScene(lz);   // zone centre where a save is made
   setTimeout(()=>{
     ball.classList.add('shooting');
     if(outcome==='over'){
@@ -654,9 +658,12 @@ function doShoot(){
       const side=ax<50?GOAL.left-4:GOAL.left+GOAL.w+4;
       ball.style.left=side+'%';ball.style.top=destTop+'%';
       ball.style.transform='translate(-50%,-50%) scale(.3)';
+    }else if(outcome==='save'){
+      ball.style.left=sdest.left+'%';ball.style.top=sdest.top+'%';
+      ball.style.transform='translate(-50%,-50%) scale(.34)';
     }else{
       ball.style.left=destLeft+'%';ball.style.top=destTop+'%';
-      ball.style.transform='translate(-50%,-50%) scale('+(outcome==='save'?.34:.26)+')';
+      ball.style.transform='translate(-50%,-50%) scale(.26)';
     }
   },170);
 
@@ -669,7 +676,7 @@ function doShoot(){
     }else if(outcome==='save'){
       showFlash('SAVED!','var(--danger)');
       markPip(state.shot,false);
-      ball.style.top=(destTop+8)+'%';
+      ball.style.top=(sdest.top+9)+'%';   // parried down from the keeper's hands
     }else if(outcome==='wide'){
       showFlash('WIDE!','var(--gold)');markPip(state.shot,false);
     }else{
