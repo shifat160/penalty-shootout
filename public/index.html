@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>xCloud Penalty Shootout — WordCamp Rajshahi</title>
+<style>
+  :root{
+    --pitch-deep:#0a3d2e;
+    --pitch:#0f5132;
+    --pitch-line:#3ddc97;
+    --chalk:#eafff5;
+    --net:#dff7ec;
+    --gold:#ffd24a;
+    --crossbar:#f4f7f5;
+    --shadow:rgba(2,18,12,.5);
+    --danger:#ff5a6a;
+    --ink:#04140d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #14694a 0%, var(--pitch) 40%, var(--pitch-deep) 100%);
+    color:var(--chalk);
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  #app{height:100dvh;display:flex;flex-direction:column;align-items:center;}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:14px 18px;gap:12px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:bold;letter-spacing:.5px;}
+  .brand .logo{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg,#3ddc97,#1f9d6b);
+    display:grid;place-items:center;font-size:17px;color:#04221a;
+    box-shadow:0 4px 14px rgba(61,220,151,.4);
+  }
+  .brand small{display:block;font-weight:normal;opacity:.7;font-size:10px;letter-spacing:1.5px;}
+  .scorebadge{
+    text-align:right;font-size:12px;letter-spacing:1px;opacity:.85;
+  }
+  .scorebadge b{font-size:22px;display:block;letter-spacing:0;}
+
+  /* ---------- stage ---------- */
+  .stage{
+    position:relative;width:100%;max-width:560px;flex:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .goal-wrap{
+    position:relative;width:92%;aspect-ratio:1/1;max-height:62vh;
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  /* pitch ground */
+  .ground{
+    position:absolute;left:-10%;right:-10%;bottom:0;height:34%;
+    background:
+      repeating-linear-gradient(90deg,#0f5132 0 40px,#0d4a2d 40px 80px);
+    border-top:3px solid rgba(234,255,245,.55);
+    border-radius:50% 50% 0 0/22% 22% 0 0;
+  }
+  /* goal frame */
+  .goal{
+    position:relative;width:100%;height:80%;
+    border:9px solid var(--crossbar);
+    border-bottom:none;
+    border-radius:4px 4px 0 0;
+    background:
+      linear-gradient(transparent 0,transparent 100%),
+      repeating-linear-gradient(0deg,rgba(223,247,236,.10) 0 7%,transparent 7% 14%),
+      repeating-linear-gradient(90deg,rgba(223,247,236,.10) 0 7%,transparent 7% 14%);
+    box-shadow:0 0 0 4px rgba(0,0,0,.12), inset 0 0 60px rgba(0,0,0,.25);
+    overflow:visible;
+  }
+  /* target zones (3x3) */
+  .zones{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);}
+  .zone{
+    border:1px dashed rgba(234,255,245,.10);
+    display:grid;place-items:center;cursor:pointer;
+    transition:background .12s;
+  }
+  .zone .dot{
+    width:14%;aspect-ratio:1;border-radius:50%;
+    background:rgba(255,210,74,.0);border:2px solid rgba(255,210,74,.0);
+    transition:.15s;
+  }
+  body.aim .zone:hover{background:rgba(61,220,151,.10);}
+  body.aim .zone:hover .dot{background:rgba(255,210,74,.25);border-color:var(--gold);transform:scale(1.6);}
+
+  /* keeper */
+  .keeper{
+    position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+    width:20%;height:46%;z-index:5;
+    transition:left .28s cubic-bezier(.5,1.6,.5,1), bottom .28s ease, transform .28s;
+    will-change:left,bottom,transform;
+  }
+  .keeper .body{position:absolute;inset:0;}
+  .keeper .torso{position:absolute;left:28%;top:34%;width:44%;height:46%;background:var(--gold);border-radius:8px 8px 4px 4px;}
+  .keeper .head{position:absolute;left:38%;top:14%;width:24%;aspect-ratio:1;background:#ffe1c2;border-radius:50%;}
+  .keeper .arm{position:absolute;top:38%;width:42%;height:13%;background:var(--gold);border-radius:8px;transition:transform .25s;}
+  .keeper .arm.l{left:-18%;transform-origin:right center;}
+  .keeper .arm.r{right:-18%;transform-origin:left center;}
+  .keeper .leg{position:absolute;bottom:0;width:15%;height:30%;background:#13352a;border-radius:4px;}
+  .keeper .leg.l{left:32%;}
+  .keeper .leg.r{right:32%;}
+  .keeper.dive-l .arm.l{transform:rotate(-55deg) scaleX(1.25);}
+  .keeper.dive-l .arm.r{transform:rotate(-30deg);}
+  .keeper.dive-r .arm.r{transform:rotate(55deg) scaleX(1.25);}
+  .keeper.dive-r .arm.l{transform:rotate(30deg);}
+  .keeper.dive-up .arm.l{transform:rotate(-120deg) scaleX(1.3);}
+  .keeper.dive-up .arm.r{transform:rotate(120deg) scaleX(1.3);}
+
+  /* ball */
+  .ball{
+    position:absolute;left:50%;bottom:2%;width:11%;aspect-ratio:1;z-index:8;
+    transform:translateX(-50%) scale(1);
+    background:
+      radial-gradient(circle at 35% 30%, #fff 0 60%, #e9eef0 100%);
+    border-radius:50%;
+    box-shadow:0 6px 12px var(--shadow), inset -4px -6px 10px rgba(0,0,0,.18);
+    transition:transform .45s cubic-bezier(.2,.7,.3,1), left .45s cubic-bezier(.2,.7,.3,1), bottom .45s cubic-bezier(.2,.7,.3,1), opacity .2s;
+  }
+  .ball::before,.ball::after{content:"";position:absolute;background:#0d2a20;}
+  .ball::before{width:30%;height:30%;left:35%;top:34%;clip-path:polygon(50% 0,93% 33%,76% 90%,24% 90%,7% 33%);}
+  .ball.shooting{transition-timing-function:cubic-bezier(.15,.85,.25,1);}
+
+  /* spot shadow */
+  .spot{
+    position:absolute;left:50%;bottom:1%;transform:translateX(-50%);
+    width:13%;height:4%;background:radial-gradient(closest-side,rgba(0,0,0,.4),transparent);
+    z-index:7;
+  }
+
+  /* shot flash */
+  .flash{
+    position:absolute;inset:0;z-index:20;pointer-events:none;
+    display:grid;place-items:center;font-size:54px;font-weight:bold;
+    opacity:0;transform:scale(.6);letter-spacing:2px;
+    text-shadow:0 4px 18px rgba(0,0,0,.6);
+  }
+  .flash.show{animation:pop 1s ease forwards;}
+  @keyframes pop{0%{opacity:0;transform:scale(.6) rotate(-6deg);}20%{opacity:1;transform:scale(1.1) rotate(-2deg);}80%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(1.05);}}
+
+  /* ---------- bottom HUD ---------- */
+  .hud{
+    width:100%;max-width:560px;padding:14px 18px 22px;
+    display:flex;flex-direction:column;gap:10px;align-items:center;
+  }
+  .shots{display:flex;gap:8px;}
+  .pip{width:16px;height:16px;border-radius:50%;border:2px solid rgba(234,255,245,.4);background:transparent;transition:.2s;}
+  .pip.goal{background:var(--pitch-line);border-color:var(--pitch-line);box-shadow:0 0 10px var(--pitch-line);}
+  .pip.miss{background:var(--danger);border-color:var(--danger);}
+  .hint{font-size:13px;opacity:.75;letter-spacing:.4px;height:18px;text-align:center;}
+
+  .btn{
+    border:none;cursor:pointer;font-family:inherit;font-weight:bold;
+    padding:14px 30px;border-radius:14px;font-size:16px;letter-spacing:.5px;
+    background:linear-gradient(135deg,#3ddc97,#19a06a);color:#04221a;
+    box-shadow:0 8px 22px rgba(61,220,151,.35);transition:transform .1s,filter .1s;
+  }
+  .btn:active{transform:translateY(2px);filter:brightness(.95);}
+  .btn.ghost{background:transparent;color:var(--chalk);border:2px solid rgba(234,255,245,.4);box-shadow:none;}
+
+  /* ---------- overlays ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:50;background:rgba(3,18,12,.86);
+    backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;
+    padding:24px;opacity:0;pointer-events:none;transition:opacity .25s;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .card{
+    width:100%;max-width:380px;background:linear-gradient(160deg,#0f5132,#0a3526);
+    border:1px solid rgba(61,220,151,.3);border-radius:22px;padding:26px 24px;
+    text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5);
+  }
+  .card h1{font-size:24px;margin-bottom:6px;letter-spacing:.5px;}
+  .card .sub{opacity:.7;font-size:13px;margin-bottom:20px;letter-spacing:.5px;}
+  .card .big{font-size:50px;color:var(--gold);margin:8px 0 2px;letter-spacing:1px;}
+  .card .reslabel{opacity:.8;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+  .field{width:100%;margin-bottom:14px;text-align:left;}
+  .field label{display:block;font-size:12px;opacity:.7;margin-bottom:5px;letter-spacing:1px;}
+  .field input{
+    width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(234,255,245,.25);
+    background:rgba(0,0,0,.25);color:var(--chalk);font-size:16px;font-family:inherit;
+  }
+  .field input:focus{outline:none;border-color:var(--pitch-line);}
+  .row{display:flex;gap:10px;}
+  .row .btn{flex:1;padding:13px 10px;}
+
+  /* leaderboard */
+  .lb{margin-top:6px;text-align:left;}
+  .lb h2{font-size:14px;letter-spacing:2px;text-transform:uppercase;opacity:.7;margin-bottom:10px;text-align:center;}
+  .lb ol{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:38vh;overflow:auto;}
+  .lb li{
+    display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;
+    background:rgba(255,255,255,.05);font-size:14px;
+  }
+  .lb li .rank{width:22px;text-align:center;font-weight:bold;opacity:.6;}
+  .lb li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lb li .pts{font-weight:bold;color:var(--gold);}
+  .lb li.me{background:rgba(61,220,151,.18);border:1px solid rgba(61,220,151,.4);}
+  .lb li.top1 .rank{color:var(--gold);opacity:1;}
+  .muted{opacity:.55;font-size:12px;text-align:center;margin-top:10px;letter-spacing:.5px;}
+  .err{color:var(--danger);font-size:12px;min-height:15px;margin-bottom:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <span>xCloud Shootout<small>WORDCAMP RAJSHAHI</small></span>
+    </div>
+    <div class="scorebadge">GOALS<b id="goalCount">0</b></div>
+  </div>
+
+  <div class="stage">
+    <div class="goal-wrap">
+      <div class="goal">
+        <div class="zones" id="zones">
+          <div class="zone" data-z="0"><span class="dot"></span></div>
+          <div class="zone" data-z="1"><span class="dot"></span></div>
+          <div class="zone" data-z="2"><span class="dot"></span></div>
+          <div class="zone" data-z="3"><span class="dot"></span></div>
+          <div class="zone" data-z="4"><span class="dot"></span></div>
+          <div class="zone" data-z="5"><span class="dot"></span></div>
+          <div class="zone" data-z="6"><span class="dot"></span></div>
+          <div class="zone" data-z="7"><span class="dot"></span></div>
+          <div class="zone" data-z="8"><span class="dot"></span></div>
+        </div>
+        <div class="keeper" id="keeper">
+          <div class="body">
+            <div class="arm l"></div><div class="arm r"></div>
+            <div class="head"></div><div class="torso"></div>
+            <div class="leg l"></div><div class="leg r"></div>
+          </div>
+        </div>
+        <div class="flash" id="flash"></div>
+      </div>
+      <div class="ground"></div>
+      <div class="spot"></div>
+      <div class="ball" id="ball"></div>
+    </div>
+  </div>
+
+  <div class="hud">
+    <div class="shots" id="shots"></div>
+    <div class="hint" id="hint">Tap where you want to shoot</div>
+  </div>
+</div>
+
+<!-- START -->
+<div class="overlay show" id="startOverlay">
+  <div class="card">
+    <h1>⚽ Penalty Shootout</h1>
+    <div class="sub">5 shots. Beat the keeper. Top the leaderboard.</div>
+    <div class="err" id="startErr"></div>
+    <div class="field">
+      <label>YOUR NAME</label>
+      <input id="nameInput" maxlength="20" placeholder="e.g. Shifat" autocomplete="off">
+    </div>
+    <button class="btn" id="startBtn" style="width:100%">Start kicking →</button>
+    <div class="muted">Tip: aim for the corners — but watch the keeper.</div>
+  </div>
+</div>
+
+<!-- RESULT + LEADERBOARD -->
+<div class="overlay" id="endOverlay">
+  <div class="card">
+    <h1 id="endTitle">Full time!</h1>
+    <div class="big" id="endScore">0/5</div>
+    <div class="reslabel" id="endLabel">goals scored</div>
+    <div class="lb">
+      <h2>🏆 Leaderboard</h2>
+      <ol id="lbList"><li><span class="nm">Loading…</span></li></ol>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn ghost" id="againBtn">Play again</button>
+      <button class="btn" id="newPlayerBtn">New player</button>
+    </div>
+    <div class="muted">Show this screen to the booth staff to claim a prize 🎁</div>
+  </div>
+</div>
+
+<script>
+const TOTAL_SHOTS = 5;
+const zonesEl = document.getElementById('zones');
+const keeper  = document.getElementById('keeper');
+const ball    = document.getElementById('ball');
+const flash   = document.getElementById('flash');
+const shotsEl = document.getElementById('shots');
+const hint    = document.getElementById('hint');
+const goalCountEl = document.getElementById('goalCount');
+
+let state = { name:'', shot:0, goals:0, busy:false, results:[] };
+
+// zone geometry: left%, bottom% inside goal for ball landing + keeper reach
+const ZONES = [
+  {x:18, y:74, reach:'up'},   {x:50, y:80, reach:'up'},   {x:82, y:74, reach:'up'},
+  {x:16, y:46, reach:'l'},    {x:50, y:50, reach:'mid'},  {x:84, y:46, reach:'r'},
+  {x:18, y:18, reach:'l'},    {x:50, y:14, reach:'mid'},  {x:82, y:18, reach:'r'},
+];
+
+function buildPips(){
+  shotsEl.innerHTML='';
+  for(let i=0;i<TOTAL_SHOTS;i++){
+    const p=document.createElement('div');p.className='pip';p.id='pip'+i;shotsEl.appendChild(p);
+  }
+}
+
+function resetBall(){
+  ball.style.transition='none';
+  ball.style.left='50%';ball.style.bottom='2%';
+  ball.style.transform='translateX(-50%) scale(1)';ball.style.opacity='1';
+  // force reflow
+  void ball.offsetWidth;
+  ball.style.transition='';
+}
+
+function keeperReset(){
+  keeper.className='keeper';
+  keeper.style.left='50%';keeper.style.bottom='0';keeper.style.transform='translateX(-50%)';
+}
+
+// keeper picks a zone to dive toward (weighted: slightly favors center/sides)
+function keeperPick(){
+  return Math.floor(Math.random()*9);
+}
+
+function moveKeeperTo(zi){
+  const z=ZONES[zi];
+  // horizontal position toward the zone, vertical hop for high shots
+  const left = z.x;            // follow x of the zone
+  keeper.style.left = left+'%';
+  if(z.y>60){ keeper.style.bottom='30%'; }      // jump for top shots
+  else if(z.y>35){ keeper.style.bottom='12%'; }
+  else { keeper.style.bottom='0%'; }
+  keeper.classList.remove('dive-l','dive-r','dive-up');
+  if(z.reach==='l') keeper.classList.add('dive-l');
+  else if(z.reach==='r') keeper.classList.add('dive-r');
+  else if(z.reach==='up') keeper.classList.add('dive-up');
+}
+
+function shoot(targetZ){
+  if(state.busy) return;
+  state.busy=true;
+  document.body.classList.remove('aim');
+  hint.textContent='';
+
+  const keeperZ = keeperPick();
+  const tz = ZONES[targetZ];
+
+  // keeper reacts almost simultaneously
+  setTimeout(()=>moveKeeperTo(keeperZ), 90);
+
+  // ball flies to target
+  ball.classList.add('shooting');
+  ball.style.left = tz.x+'%';
+  ball.style.bottom = tz.y+'%';
+  ball.style.transform = 'translateX(-50%) scale(.45)';
+
+  // a save happens if keeper picked the SAME zone, or an adjacent reachable one (10% luck)
+  let saved = (keeperZ===targetZ);
+  if(!saved && Math.random()<0.10){
+    // keeper makes a lucky fingertip save on a neighbour
+    if(Math.abs(keeperZ-targetZ)===1 || Math.abs(keeperZ-targetZ)===3) saved=true;
+  }
+
+  setTimeout(()=>{
+    if(saved){
+      ball.style.transform='translateX(-50%) scale(.5)';
+      ball.style.bottom=(tz.y-6)+'%';
+      showFlash('SAVED!', 'var(--danger)');
+      markPip(state.shot,false);
+    }else{
+      showFlash('GOAL!', 'var(--pitch-line)');
+      markPip(state.shot,true);
+      state.goals++;
+      goalCountEl.textContent=state.goals;
+      ball.style.opacity='0';
+    }
+    state.results.push(saved?'miss':'goal');
+    state.shot++;
+
+    setTimeout(()=>{
+      ball.classList.remove('shooting');
+      if(state.shot>=TOTAL_SHOTS){ endGame(); }
+      else { nextShot(); }
+    }, 1100);
+  }, 470);
+}
+
+function showFlash(text,color){
+  flash.textContent=text;flash.style.color=color;
+  flash.classList.remove('show');void flash.offsetWidth;flash.classList.add('show');
+}
+
+function markPip(i,isGoal){
+  const p=document.getElementById('pip'+i);
+  if(p) p.classList.add(isGoal?'goal':'miss');
+}
+
+function nextShot(){
+  keeperReset();resetBall();
+  document.body.classList.add('aim');
+  hint.textContent='Shot '+(state.shot+1)+' of '+TOTAL_SHOTS+' — tap your target';
+  state.busy=false;
+}
+
+function startGame(){
+  state.shot=0;state.goals=0;state.results=[];state.busy=false;
+  goalCountEl.textContent='0';
+  buildPips();keeperReset();resetBall();
+  document.getElementById('endOverlay').classList.remove('show');
+  document.getElementById('startOverlay').classList.remove('show');
+  document.body.classList.add('aim');
+  hint.textContent='Shot 1 of '+TOTAL_SHOTS+' — tap your target';
+}
+
+// ---- zone tap handlers ----
+zonesEl.querySelectorAll('.zone').forEach(z=>{
+  z.addEventListener('click',()=>{
+    if(!document.body.classList.contains('aim'))return;
+    shoot(parseInt(z.dataset.z,10));
+  });
+});
+
+// ---------- leaderboard / backend ----------
+async function submitScore(){
+  try{
+    const res=await fetch('/api/score',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:state.name,score:state.goals})
+    });
+    return await res.json();
+  }catch(e){ return null; }
+}
+async function loadBoard(){
+  try{
+    const res=await fetch('/api/leaderboard');
+    return await res.json();
+  }catch(e){ return {top:[]}; }
+}
+function renderBoard(data){
+  const list=document.getElementById('lbList');
+  const rows=(data&&data.top)||[];
+  if(!rows.length){ list.innerHTML='<li><span class="nm">Be the first on the board!</span></li>'; return; }
+  list.innerHTML='';
+  rows.forEach((r,i)=>{
+    const li=document.createElement('li');
+    if(i===0)li.classList.add('top1');
+    if(r.name===state.name && r.score===state.goals && !list.querySelector('.me'))li.classList.add('me');
+    const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+    li.innerHTML='<span class="rank">'+medal+'</span><span class="nm">'+escapeHtml(r.name)+'</span><span class="pts">'+r.score+'/'+TOTAL_SHOTS+'</span>';
+    list.appendChild(li);
+  });
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function endGame(){
+  document.body.classList.remove('aim');
+  const g=state.goals;
+  document.getElementById('endScore').textContent=g+'/'+TOTAL_SHOTS;
+  let title='Full time!';
+  if(g===5)title='PERFECT! 🔥';else if(g>=4)title='Top scorer! ⚽';else if(g>=3)title='Nice work!';else if(g>=1)title='Keep practising!';else title='Unlucky!';
+  document.getElementById('endTitle').textContent=title;
+  document.getElementById('endOverlay').classList.add('show');
+  document.getElementById('lbList').innerHTML='<li><span class="nm">Saving…</span></li>';
+  await submitScore();
+  const board=await loadBoard();
+  renderBoard(board);
+}
+
+// ---- overlay buttons ----
+document.getElementById('startBtn').addEventListener('click',()=>{
+  const n=document.getElementById('nameInput').value.trim();
+  if(!n){document.getElementById('startErr').textContent='Please enter your name first.';return;}
+  document.getElementById('startErr').textContent='';
+  state.name=n;startGame();
+});
+document.getElementById('nameInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('startBtn').click();});
+document.getElementById('againBtn').addEventListener('click',startGame);
+document.getElementById('newPlayerBtn').addEventListener('click',()=>{
+  document.getElementById('endOverlay').classList.remove('show');
+  document.getElementById('startOverlay').classList.add('show');
+  document.getElementById('nameInput').value='';
+  document.getElementById('nameInput').focus();
+});
+
+buildPips();
+</script>
+</body>
+</html>

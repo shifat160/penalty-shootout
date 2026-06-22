@@ -1,0 +1,15 @@
+services:
+  penalty-shootout:
+    build: .
+    container_name: penalty-shootout
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Leaderboard survives container restarts / rebuilds
+      - ./data:/app/data
+    environment:
+      - PORT=8080
+      - DATA_DIR=/app/data
+      # Uncomment to enable the reset endpoint:
+      # - ADMIN_TOKEN=change-this-token

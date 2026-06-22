@@ -1,0 +1,18 @@
+services:
+  penalty-shootout:
+    image: ghcr.io/shifat160/penalty-shootout:latest
+    container_name: penalty-shootout
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATA_DIR=/app/data
+      # Set a secret to enable POST /api/reset?token=... for clearing the board between days
+      - ADMIN_TOKEN=penalty-reset-2026
+    volumes:
+      # Named volume — Docker-managed, survives restarts and redeploys
+      - penalty_data:/app/data
+
+volumes:
+  penalty_data:
