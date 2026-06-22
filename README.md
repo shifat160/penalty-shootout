@@ -123,9 +123,12 @@ Or just stop the container and delete `data/scores.json`.
 ## How scoring works
 
 - Each player takes 5 shots; a goal = 1 point (max 5).
-- The leaderboard keeps each **player's best score**, keyed by **email** when
-  present (so retries don't create duplicate rows), sorted highest first, ties
-  broken by who reached it first.
+- **One game per player:** an email can only submit once. The site checks at
+  registration (and the backend rejects a duplicate `POST /api/score` with 409),
+  so nobody can replay to pad their score. After playing, the result screen just
+  shows the leaderboard and a "Next player" button.
+- The leaderboard is keyed by **email**, sorted highest first, ties broken by
+  who reached it first.
 - Each shot has two steps: **aim** (tap a zone in the goal) then **power** (tap
   SHOOT while the meter is in the green band). Too little power = easy save; too
   much on the top corners = over the bar.
@@ -158,7 +161,8 @@ Or just stop the container and delete `data/scores.json`.
 ## API (for reference)
 
 - `GET  /api/leaderboard` → `{ "top": [ { "name", "country", "flag", "score" }, ... ] }`
-- `POST /api/score` body `{ "name", "email", "country", "flag", "score": 0-5 }` → saves + returns board
+- `GET  /api/check?email=...` → `{ "played": true|false }` (one-game-per-player check)
+- `POST /api/score` body `{ "name", "email", "country", "flag", "score": 0-5 }` → saves + returns board; returns **409** `{ "already": true }` if that email already played
 - `POST /api/reset?token=...` → clears board (only if `ADMIN_TOKEN` is set)
 - `GET  /api/export?token=...` → downloads all entries as CSV
   (`name,email,country,score,timestamp`) for lead capture (needs `ADMIN_TOKEN`)

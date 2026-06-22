@@ -334,10 +334,9 @@
     <div class="lb"><h2>🏆 Leaderboard</h2>
       <ol id="lbList"><li><span class="nm">Loading…</span></li></ol></div>
     <div class="row" style="margin-top:16px">
-      <button class="btn ghost" id="againBtn">Play again</button>
-      <button class="btn" id="newPlayerBtn">New player</button>
+      <button class="btn" id="newPlayerBtn" style="flex:1">Next player →</button>
     </div>
-    <div class="muted">Show this screen to booth staff to claim a prize 🎁</div>
+    <div class="muted">One game per player · show this screen to booth staff to claim a prize 🎁</div>
   </div>
 </div>
 
@@ -777,20 +776,39 @@ async function endGame(){
 
 /* ---------- register handlers ---------- */
 function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);}
-document.getElementById('startBtn').addEventListener('click',()=>{
+async function alreadyPlayed(email){
+  try{const r=await fetch('/api/check?email='+encodeURIComponent(email));return (await r.json()).played;}
+  catch(e){return false;}
+}
+async function showAlreadyPlayed(){
+  document.getElementById('startOverlay').classList.remove('show');
+  document.body.classList.remove('prereg');
+  document.getElementById('endTitle').textContent='Already played!';
+  document.getElementById('endScore').textContent='✓';
+  document.getElementById('endLabel').textContent='one game per player';
+  document.getElementById('endOverlay').classList.add('show');
+  document.getElementById('lbList').innerHTML='<li><span class="nm">Loading…</span></li>';
+  renderBoard(await loadBoard());
+}
+const startBtn=document.getElementById('startBtn');
+startBtn.addEventListener('click',async ()=>{
   const n=document.getElementById('nameInput').value.trim();
   const em=document.getElementById('emailInput').value.trim();
   const err=document.getElementById('startErr');
   if(!n){err.textContent='Please enter your name.';return;}
   if(!validEmail(em)){err.textContent='Please enter a valid email.';return;}
   err.textContent='';
+  startBtn.disabled=true;startBtn.textContent='Checking…';
+  const played=await alreadyPlayed(em);
+  startBtn.disabled=false;startBtn.textContent='Take the kicks →';
+  if(played){ showAlreadyPlayed(); return; }
   const k=kitFromIndex(parseInt(sel.value,10));
   player={name:n,email:em,country:k.name,flag:k.flag,kit:k};
   applyKit();startGame();
 });
-document.getElementById('againBtn').addEventListener('click',startGame);
 document.getElementById('newPlayerBtn').addEventListener('click',()=>{
   document.getElementById('endOverlay').classList.remove('show');
+  document.getElementById('endLabel').textContent='goals scored';
   document.getElementById('startOverlay').classList.add('show');
   document.body.classList.add('prereg');
   document.getElementById('nameInput').value='';

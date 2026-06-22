@@ -64,6 +64,14 @@ const server = http.createServer((req, res) => {
     return sendJSON(res, 200, { top: topBoard(readScores()) });
   }
 
+  // --- API: has this email already played? (one game per player) ---
+  if (req.method === 'GET' && url.pathname === '/api/check') {
+    const email = String(url.searchParams.get('email') || '').trim().toLowerCase();
+    const played = !!email && readScores().some(
+      r => r.email && String(r.email).toLowerCase() === email);
+    return sendJSON(res, 200, { played });
+  }
+
   // --- API: submit score ---
   if (req.method === 'POST' && url.pathname === '/api/score') {
     let body = '';
@@ -78,6 +86,11 @@ const server = http.createServer((req, res) => {
         const cleanScore = Math.max(0, Math.min(99, parseInt(score, 10) || 0));
         if (!cleanName) return sendJSON(res, 400, { error: 'name required' });
         const list = readScores();
+        // one game per player: reject a second score from the same email
+        if (cleanEmail && list.some(
+            r => r.email && String(r.email).toLowerCase() === cleanEmail.toLowerCase())) {
+          return sendJSON(res, 409, { ok: false, already: true, top: topBoard(list) });
+        }
         list.push({
           name: cleanName, email: cleanEmail, country: cleanCountry,
           flag: cleanFlag, score: cleanScore, ts: Date.now(),
