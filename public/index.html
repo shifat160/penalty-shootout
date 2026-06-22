@@ -94,7 +94,7 @@
     border:3px solid rgba(243,255,248,.4);border-radius:0 0 50% 50%;border-top:none;}
 
   /* ============ GOAL ============ */
-  .goal{position:absolute;left:27%;top:14.5%;width:46%;height:20%;z-index:3;}
+  .goal{position:absolute;left:21%;top:15%;width:58%;height:26%;z-index:3;}
   .goal .frame{position:absolute;inset:0;border:6px solid #f4f7f5;border-bottom:none;
     border-radius:3px 3px 0 0;box-shadow:0 0 0 2px rgba(0,0,0,.25);}
   .goal .net{position:absolute;inset:6px 6px 0 6px;
@@ -114,30 +114,30 @@
     background:rgba(255,210,74,.3);border-color:var(--gold);transform:scale(1.3);}
   .zone.picked .dot{background:rgba(255,210,74,.55);border-color:#fff;transform:scale(1.35);}
 
-  /* keeper */
-  .keeper{position:absolute;left:50%;top:42%;width:15%;z-index:5;
+  /* keeper — lives inside the goal so it scales + sits in the mouth */
+  .keeper{position:absolute;left:50%;bottom:2%;height:82%;z-index:5;
     transform:translateX(-50%);transform-origin:bottom center;
-    transition:left .26s cubic-bezier(.4,1.5,.5,1), top .26s ease, transform .26s cubic-bezier(.4,1.5,.5,1);}
-  .keeper svg{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 6px rgba(0,0,0,.45));}
-  .keeper.dl{transform:translateX(-50%) rotate(-58deg) translateY(-6%);}
-  .keeper.dr{transform:translateX(-50%) rotate(58deg) translateY(-6%);}
-  .keeper.du{transform:translateX(-50%) scaleY(1.18) translateY(-8%);}
+    transition:left .26s cubic-bezier(.4,1.4,.5,1), bottom .26s ease, transform .26s cubic-bezier(.4,1.4,.5,1);}
+  .keeper svg{height:100%;width:auto;display:block;filter:drop-shadow(0 5px 5px rgba(0,0,0,.45));}
+  .keeper.dl{transform:translateX(-50%) rotate(-62deg);}
+  .keeper.dr{transform:translateX(-50%) rotate(62deg);}
+  .keeper.du{transform:translateX(-50%) translateY(-22%) scale(1.04);}
 
   /* penalty spot + ball */
-  .spot{position:absolute;left:50%;top:74%;width:5%;height:1.6%;transform:translateX(-50%);
+  .spot{position:absolute;left:50%;top:62%;width:6%;height:1.8%;transform:translateX(-50%);
     background:radial-gradient(closest-side,#f3fff8,transparent);z-index:2;}
-  .ball{position:absolute;left:50%;top:78%;width:8%;aspect-ratio:1;z-index:8;
+  .ball{position:absolute;left:50%;top:64%;width:7%;aspect-ratio:1;z-index:8;
     transform:translate(-50%,-50%) scale(1);
     transition:left .5s cubic-bezier(.25,.7,.35,1), top .5s cubic-bezier(.25,.7,.35,1),
                transform .5s cubic-bezier(.25,.7,.35,1), opacity .25s;}
   .ball svg{width:100%;height:100%;display:block;filter:drop-shadow(0 4px 5px rgba(0,0,0,.4));}
 
-  /* shooter in foreground */
-  .shooter{position:absolute;left:50%;bottom:-3%;width:30%;z-index:9;
-    transform:translateX(-58%);transform-origin:60% 90%;pointer-events:none;
+  /* shooter in foreground (kept modest so the goal stays the focus) */
+  .shooter{position:absolute;left:50%;bottom:-4%;width:19%;z-index:9;
+    transform:translateX(-50%);transform-origin:50% 90%;pointer-events:none;
     transition:transform .18s ease;}
   .shooter svg{width:100%;height:auto;display:block;filter:drop-shadow(0 12px 10px rgba(0,0,0,.5));}
-  .shooter.kick{transform:translateX(-58%) rotate(-3deg);}
+  .shooter.kick{transform:translateX(-50%) rotate(-3deg);}
   .shooter .legkick{transform-origin:50% 12%;transition:transform .16s ease;}
   .shooter.kick .legkick{transform:rotate(-46deg);}
   .shooter.hide{opacity:0;transition:opacity .25s;}
@@ -268,9 +268,9 @@
         <div class="zone" data-z="7"><span class="dot"></span></div>
         <div class="zone" data-z="8"><span class="dot"></span></div>
       </div>
+      <div class="keeper" id="keeper"></div>
     </div>
 
-    <div class="keeper" id="keeper"></div>
     <div class="spot"></div>
     <div class="ball" id="ball"></div>
     <div class="shooter" id="shooter"></div>
@@ -469,7 +469,7 @@ const ZONES=[
   {x:16,y:82,col:0,row:2},{x:50,y:86,col:1,row:2},{x:84,y:82,col:2,row:2},
 ];
 // goal box position within scene (must match .goal CSS)
-const GOAL={left:27,top:14.5,w:46,h:20};
+const GOAL={left:21,top:15,w:58,h:26};
 
 ball.innerHTML=`<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="19" fill="#fff" stroke="#cfd6da"/>
   <path d="M20 6 l8 6 -3 9 -10 0 -3 -9 z" fill="#13352a"/>
@@ -508,13 +508,13 @@ function zoneScene(zi){
 /* ---------- ball / keeper reset ---------- */
 function resetBall(){
   ball.style.transition='none';
-  ball.style.left='50%';ball.style.top='78%';
+  ball.style.left='50%';ball.style.top='64%';
   ball.style.transform='translate(-50%,-50%) scale(1)';ball.style.opacity='1';
   void ball.offsetWidth;ball.style.transition='';
 }
 function resetKeeper(){
   keeperEl.className='keeper';
-  keeperEl.style.left='50%';keeperEl.style.top='42%';
+  keeperEl.style.left='50%';keeperEl.style.bottom='2%';
 }
 
 /* ---------- power meter ---------- */
@@ -638,13 +638,12 @@ function doShoot(){
 }
 
 function moveKeeper(kz){
-  const z=ZONES[kz];
-  const sceneLeft=GOAL.left+(z.x/100)*GOAL.w;
-  keeperEl.style.left=sceneLeft+'%';
-  if(z.row===0){keeperEl.style.top='34%';}
-  else if(z.row===1){keeperEl.style.top='40%';}
-  else{keeperEl.style.top='44%';}
+  const z=ZONES[kz];                 // keeper now lives inside the goal: use goal-local coords
+  keeperEl.style.left=z.x+'%';
   keeperEl.classList.remove('dl','dr','du');
+  if(z.row===0){keeperEl.style.bottom='12%';}      // reach high
+  else if(z.row===1){keeperEl.style.bottom='4%';}
+  else{keeperEl.style.bottom='-2%';}               // get down low
   if(z.col===0)keeperEl.classList.add('dl');
   else if(z.col===2)keeperEl.classList.add('dr');
   else if(z.row===0)keeperEl.classList.add('du');
